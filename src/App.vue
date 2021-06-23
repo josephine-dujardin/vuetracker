@@ -1,6 +1,5 @@
 <template>
-
-  <el-container v-if="$route.meta.layout === true" class="mainContainer">
+  <el-container class="mainContainer">
 
     <el-aside width="200px">
       <TheMenu />
@@ -11,59 +10,62 @@
       <el-header height="60px">
         <TheTopTask
           ref="TheTopTask"
+          @newTask="addTask($event)"
         />
       </el-header>
 
       <el-main>
 
-        <router-view></router-view>
-
+        <router-view        
+          :tasks="tasks || []"
+          :areTasksLoading="areTasksLoading"       
+          v-on="{
+            restart: sendRestartTask,
+            delete: deleteTask,
+          }"
+        ></router-view>
+        
       </el-main>
 
     </el-container>
 
   </el-container>
-
-  <div v-else-if="$route.meta.layout === false" class="mainContainer">
-    <h3 class="titleNoLayout">VueTracker</h3>
-    <router-view></router-view>
-  </div>
-
-  <div v-else class="mainContainer" v-loading="true"></div>
-
 </template>
 
 <script>
-  import { mapState, mapActions, mapMutations } from 'vuex'
-
+  import { v4 as uuid } from '@lukeed/uuid';
+  import * as TaskService from './services/TaskService.js';
   import TheMenu from './components/TheMenu.vue'
   import TheTopTask from './components/TheTopTask.vue'
   import TaskList from './components/TaskList.vue'
-
   export default {
     components: {
       TheMenu,
       TheTopTask,
       TaskList
     },
-    computed: {
-      ...mapState({
-        tasks: (state) => state.tasks.tasks
-      })
+    data() {
+      return {
+        tasks: [],
+        areTasksLoading: true
+      }
     },
     watch: {
       tasks: {
         // Mise à jour de toutes les tâches en API dès que tasks change
         deep: true,
         async handler (newVal, oldVal) {
-          if (newVal !== null && oldVal !== null) {          
+          if (newVal != null && oldVal != null) {
             try {
-              await this.updateAllTasks()
+              await TaskService.updateAll(this.tasks)
             } catch (e) {
               console.error(e)
-              this.sendError({
-                title: 'Mode hors-ligne',
-                message: `Synchronisation des tâches impossible`
+              this.$notify({
+                title: 'mode hors-ligne',
+                message: `Syncronisation des tâches impossible`,
+                type: 'error',
+                offset: 50,
+                duration: 3000
               });
             }
           }
@@ -71,33 +73,66 @@
       }
     },
     methods: {
-      ...mapActions({
-        setWatcherCurrentUser: 'users/setWatcherCurrentUser',
-        fetchAllTasks: 'tasks/fetchAllTasks',
-        updateAllTasks: 'tasks/updateAllTasks',
-        sendError: 'notifications/sendError'
-      }),
-      ...mapMutations({
-        SET_NOTIFIER: 'notifications/SET_NOTIFIER'
-      })
+      async addTask ({ name, startTime }) {
+        // Ajout de la tâche en local
+        this.tasks.unshift({
+          id: uuid(),
+          name, 
+          startTime,
+          endTime: Date.now()
+        })
+        // Mise à jour de toutes les tâches en API
+        try {
+          await TaskService.updateAll(this.tasks)
+        } catch (e) {
+          console.error(e)
+        }
+      },  
+      sendRestartTask (taskID) {
+        // Récupération du nom de l'ancienne tâche
+        let newTaskname = null
+        this.tasks.forEach(task => {
+          if (task.id === taskID) {
+            newTaskname = task.name
+          }
+        })
+        // Relancement de la tâche
+        this.$refs.TheTopTask.restartTask(newTaskname)
+      },   
+      async deleteTask (taskID) {
+        // Récupération de l'index de la tâche
+        let taskIndex = null
+        this.tasks.forEach((task, index) => {
+          if (task.id === taskID) {
+            taskIndex = index
+          }
+        })
+        // Suppression de la tâche en local
+        this.tasks.splice(taskIndex, 1)        
+        // Mise à jour de toutes les tâches en API
+        try {
+          await TaskService.updateAll(this.tasks)
+        } catch (e) {
+          console.error(e)
+        }
+      }
     },
     async created () {
-      // Mise en place de l'actualisation de l'utilisateur actuel
-      this.setWatcherCurrentUser()
-
-      // Mise en place du système de notification
-      this.SET_NOTIFIER(this.$notify)
-
       // Récupération de toutes les tâches
       try {
-        await this.fetchAllTasks()
+        this.tasks = await TaskService.getAll()
       } catch (e) {
         console.error(e)
-        this.sendError({
-          title: 'Mode hors-ligne',
-          message: `Récupération des tâches impossible`
+          this.tasks = []
+          this.$notify({
+          title: 'Mode Hors-ligne',
+          message:'Récupération des tâches impossible',
+          type: 'error',
+          offset: 50,
+          duration: 3000
         });
       }
+      this.areTasksLoading = false
     }
   };
 </script>
@@ -117,11 +152,6 @@ body { margin: 0; }
   color: #2c3e50;
 }
 .mainContainer { height: 100%; }
-
-.titleNoLayout {
-  margin: 50px auto;
-}
-
 .el-aside {
   height: 100%;
   color: #333;
@@ -136,12 +166,12 @@ body { margin: 0; }
     border: none !important;
   }
 }
+
 .el-notification {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
+  font-family: Avenir, Arial, Helvetica, sans-serif;
 }
 
 .highlight-line {
-  background-color: #40a0ff31 !important
+  background-color: #40a0ff36 !important;
 }
-
 </style>
