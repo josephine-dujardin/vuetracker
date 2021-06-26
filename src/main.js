@@ -3,13 +3,15 @@ import * as VueRouter from 'vue-router'
 
 import App from './App.vue'
 import HomePage from './pages/Home.vue'
-import SettingsPage from './pages/Settings.vue'
-import NotFoundPage from './pages/NotFound.vue'
-import SettingsUser from './components/SettingsUser.vue'
-import SettingsApp from './components/SettingsApp.vue'
 
 import ElementPlus from 'element-plus'
 import 'element-plus/lib/theme-chalk/index.css'
+
+const LoginPage = () => import('./pages/Login.vue')
+const NotFoundPage = () => import('./pages/NotFound.vue')
+const SettingsPage = () => import('./pages/Settings.vue')
+const SettingsUser = () => import('./components/SettingsUser.vue')
+const SettingsApp = () => import('./components/SettingsApp.vue')
 
 const router = VueRouter.createRouter({
     history: VueRouter.createWebHistory(),
@@ -19,6 +21,7 @@ const router = VueRouter.createRouter({
             alias: '/home',
             name: 'Home',
             component: HomePage,
+            meta: { needLoggedIn: false },
             children: [
                 {
                     path: 'home/:taskID',
@@ -30,16 +33,29 @@ const router = VueRouter.createRouter({
             path: '/settings',
             name: 'Settings',
             component: SettingsPage,
+            meta: { needLoggedIn: false },
             children: [
                 {
                     path: 'app',
-                    component: SettingsApp
+                    component: SettingsApp,
+                    meta: { needLoggedIn: false }
                 },
                 {
                     path: 'user',
-                    component: SettingsUser
+                    component: SettingsUser,
+                    meta: { needLoggedIn: false }
                 }
             ]
+        },
+        {
+            path: '/login',
+            name: 'Login',
+            component: LoginPage,
+            beforeEnter: (to , from) => {
+                if (localStorage.getItem('isLoggedIn')) {
+                    return '/'
+                }
+            }
         },
         {
             path: '/notfound',
@@ -53,6 +69,13 @@ const router = VueRouter.createRouter({
             }
         }
     ]
+})
+
+router.beforeEach((to, from) => {
+    /* global localStorage */
+    if (to.meta.needLoggedIn && !localStorage.getItem('isLoggedIn')) {
+        return '/login'        
+    }
 })
 
 const app = createApp(App)
