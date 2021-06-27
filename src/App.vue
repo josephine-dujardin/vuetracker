@@ -16,15 +16,16 @@
 
       <el-main>
 
-        <router-view        
+        <router-view
           :tasks="tasks || []"
           :areTasksLoading="areTasksLoading"       
           v-on="{
             restart: sendRestartTask,
             delete: deleteTask,
+            updateTasks: getAllTasks
           }"
         ></router-view>
-        
+
       </el-main>
 
     </el-container>
@@ -46,7 +47,7 @@
     },
     data() {
       return {
-        tasks: [],
+        tasks: null,
         areTasksLoading: true
       }
     },
@@ -55,14 +56,14 @@
         // Mise à jour de toutes les tâches en API dès que tasks change
         deep: true,
         async handler (newVal, oldVal) {
-          if (newVal != null && oldVal != null) {
+          if (newVal !== null && oldVal !== null) {          
             try {
               await TaskService.updateAll(this.tasks)
             } catch (e) {
               console.error(e)
               this.$notify({
-                title: 'mode hors-ligne',
-                message: `Syncronisation des tâches impossible`,
+                title: 'Mode hors-ligne',
+                message: `Synchronisation des tâches impossible`,
                 type: 'error',
                 offset: 50,
                 duration: 3000
@@ -74,19 +75,13 @@
     },
     methods: {
       async addTask ({ name, startTime }) {
-        // Ajout de la tâche en local
+        // Ajout de la tâche
         this.tasks.unshift({
           id: uuid(),
           name, 
           startTime,
           endTime: Date.now()
         })
-        // Mise à jour de toutes les tâches en API
-        try {
-          await TaskService.updateAll(this.tasks)
-        } catch (e) {
-          console.error(e)
-        }
       },  
       sendRestartTask (taskID) {
         // Récupération du nom de l'ancienne tâche
@@ -107,32 +102,30 @@
             taskIndex = index
           }
         })
-        // Suppression de la tâche en local
-        this.tasks.splice(taskIndex, 1)        
-        // Mise à jour de toutes les tâches en API
+        // Suppression de la tâche
+        this.tasks.splice(taskIndex, 1)
+      },
+      async getAllTasks() {
+        this.areTasksLoading = true
         try {
-          await TaskService.updateAll(this.tasks)
+          this.tasks = await TaskService.getAll()
         } catch (e) {
           console.error(e)
+          this.tasks = []
+          this.$notify({
+            title: 'Mode hors-ligne',
+            message: `Récupération des tâches impossible`,
+            type: 'error',
+            offset: 50,
+            duration: 3000
+          });
         }
+        this.areTasksLoading = false
       }
     },
     async created () {
       // Récupération de toutes les tâches
-      try {
-        this.tasks = await TaskService.getAll()
-      } catch (e) {
-        console.error(e)
-          this.tasks = []
-          this.$notify({
-          title: 'Mode Hors-ligne',
-          message:'Récupération des tâches impossible',
-          type: 'error',
-          offset: 50,
-          duration: 3000
-        });
-      }
-      this.areTasksLoading = false
+      await this.getAllTasks()
     }
   };
 </script>
@@ -166,12 +159,10 @@ body { margin: 0; }
     border: none !important;
   }
 }
-
 .el-notification {
-  font-family: Avenir, Arial, Helvetica, sans-serif;
+  font-family: Avenir, Helvetica, Arial, sans-serif;
 }
-
 .highlight-line {
-  background-color: #40a0ff36 !important;
+  background-color: #40a0ff31 !important
 }
 </style>
