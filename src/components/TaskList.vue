@@ -5,15 +5,17 @@
     <el-option label="La plus ancienne d'abord" value="ascending"></el-option>
   </el-select>
   
+<div v-for="dayTasks, dayTS in tasksByDay" :key="dayTS">
+  <h3>{{ fullDateFormatter.format(dayTS) }}</h3>
   <el-table
-    :data="tasks"
+    :data="dayTasks"
     :row-class-name="checkHighlight"
     row-key="id"
     @row-click="setHighlight"
     empty-text="Aucune tâche"
     style="width: 100%"
     v-loading="areTasksLoading"
-    ref="table"
+    :ref="dayTS"
     >
 
     <el-table-column
@@ -50,19 +52,17 @@
       <template #default="scope">
         <TaskListActions
          :taskID="scope.row.id"
-         v-on="{
-           restart: sendRestart,
-           delete: sendDelete,
-         }"
-         @copyTaskname="copyToClipboard(scope.row.name)"
+         :taskname="scope.row.name"
         />
       </template>
     </el-table-column>
     
   </el-table>
+</div>
 </template>
 
 <script>
+  import { mapState, mapGetters } from 'vuex'
   import TaskListActions from './TaskListActions.vue'
   export default {
     components: {
@@ -71,29 +71,30 @@
     data() {
       return {        
         tsFormatter: Intl.DateTimeFormat('fr', { hour: '2-digit', minute: '2-digit' }),
+        fullDateFormatter: Intl.DateTimeFormat('fr', { dateStyle: 'full' }),
         defaultSortBy: 'descending',
         sortBy: (this.$route.query.sortBy === 'ascending') ? 'ascending' : 'descending'
       }
     },
-    props: {
-      tasks: {
-        type: Array,
-        default: []
-      },
-      areTasksLoading: {
-        type: Boolean,
-        default: false
-      }
+    computed: {
+      ...mapState([
+        'areTasksLoading'
+      ]),
+      ...mapGetters([
+        'tasksByDay'
+      ])
     },
     watch: {
       sortBy(newVal) {
         this.$router.push({ query: { sortBy: (newVal === this.defaultSortBy ) ? undefined : newVal } })
         this.sortTable()
       },
-      tasks: {
+      tasksByDay: {
         deep: true,
         handler() {
-          this.sortTable()
+          this.$nextTick(() => {
+            this.sortTable()
+          })
         }
       }
     },
@@ -109,24 +110,12 @@
         minutes = minutes % 60
         return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
       },
-      sendRestart (data) {
-        this.$emit('restart', data)
-      },
-      sendDelete (data) {
-        this.$emit('delete', data)
-      },
-      copyToClipboard(text) {
-        navigator.clipboard.writeText(text)
-        this.$notify({
-          title: 'Succès',
-          message: `Le nom de cette tâche a bien été copié`,
-          type: 'Success',
-          offset: 50,
-          duration: 1500
-        });
-      },
       sortTable() {
-        this.$refs.table.sort('name', this.sortBy)
+        console.log(this.tasksByDay)
+        console.log(this.$refs)
+        for (let dayTS in this.tasksByDay) {
+          this.$refs[dayTS].sort('name', this.sortBy)
+        }
       },
       checkHighlight({ row }) {
         if (this.$route.params.taskID && row.id === this.$route.params.taskID ) {
@@ -148,5 +137,9 @@
 <style scoped>
   .el-select {
     float: right;
+  }
+  h3 {
+    text-align: left;
+    text-transform: capitalize;
   }
 </style>
